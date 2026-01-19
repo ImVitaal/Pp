@@ -73,47 +73,47 @@ def validate_environment() -> dict:
     # Check Python version (3.10+)
     if sys.version_info >= (3, 10):
         results['python_version'] = True
-        logger.info(f"✓ Python version: {sys.version.split()[0]}")
+        logger.info(f"[OK] Python version: {sys.version.split()[0]}")
     else:
-        logger.error(f"✗ Python version {sys.version.split()[0]} < 3.10")
+        logger.error(f"[FAIL] Python version {sys.version.split()[0]} < 3.10")
     
     # Check pygame-ce
     try:
         import pygame
         results['pygame_ce'] = True
-        logger.info(f"✓ pygame-ce installed: {pygame.version.ver}")
+        logger.info(f"[OK] pygame-ce installed: {pygame.version.ver}")
     except ImportError:
-        logger.error("✗ pygame-ce not installed")
+        logger.error("[FAIL] pygame-ce not installed")
     
     # Check pygame_gui
     try:
         import pygame_gui
         results['pygame_gui'] = True
-        logger.info(f"✓ pygame_gui installed")
+        logger.info(f"[OK] pygame_gui installed")
     except ImportError:
-        logger.error("✗ pygame_gui not installed")
+        logger.error("[FAIL] pygame_gui not installed")
     
     # Check requests
     try:
         import requests
         results['requests'] = True
-        logger.info(f"✓ requests installed: {requests.__version__}")
+        logger.info(f"[OK] requests installed: {requests.__version__}")
     except ImportError:
-        logger.error("✗ requests not installed")
+        logger.error("[FAIL] requests not installed")
     
     # Check python-dotenv
     try:
         import dotenv
         results['dotenv'] = True
-        logger.info(f"✓ python-dotenv installed")
+        logger.info(f"[OK] python-dotenv installed")
     except ImportError:
-        logger.error("✗ python-dotenv not installed")
+        logger.error("[FAIL] python-dotenv not installed")
     
     # Try to load config
     try:
         config = load_config("config.json")
         results['config_valid'] = True
-        logger.info("✓ Configuration loaded successfully")
+        logger.info("[OK] Configuration loaded successfully")
         
         # Check Ollama if enabled
         providers_config = config.get('llm_providers', {})
@@ -130,20 +130,20 @@ def validate_environment() -> dict:
                 if ollama.is_available():
                     results['ollama_server'] = True
                     models = ollama.list_models()
-                    logger.info(f"✓ Ollama server running with {len(models)} models")
-                    
+                    logger.info(f"[OK] Ollama server running with {len(models)} models")
+
                     if models:
                         logger.info(f"  Available models: {', '.join(models)}")
                     else:
-                        logger.warning("  ⚠️ No models downloaded. Run: ollama pull llama3.2:3b")
+                        logger.warning("  [WARN] No models downloaded. Run: ollama pull llama3.2:3b")
                 else:
-                    logger.error("✗ Ollama server not responding")
+                    logger.error("[FAIL] Ollama server not responding")
                     logger.info("  Start it with: ollama serve")
                     
             except Exception as e:
-                logger.error(f"✗ Error checking Ollama: {e}")
+                logger.error(f"[FAIL] Error checking Ollama: {e}")
         else:
-            logger.info("⊘ Ollama disabled in config")
+            logger.info("[SKIP] Ollama disabled in config")
         
         # Check API keys for enabled providers
         credentials = check_provider_credentials(config)
@@ -152,13 +152,13 @@ def validate_environment() -> dict:
                 continue
             
             if has_key:
-                logger.info(f"✓ {provider.title()} API key found")
+                logger.info(f"[OK] {provider.title()} API key found")
             else:
-                logger.warning(f"⚠️ {provider.title()} enabled but no API key")
+                logger.warning(f"[WARN] {provider.title()} enabled but no API key")
         
     except Exception as e:
-        logger.error(f"✗ Config error: {e}")
-    
+        logger.error(f"[FAIL] Config error: {e}")
+
     return results
 
 
@@ -175,19 +175,19 @@ def print_diagnostic_report(results: dict) -> None:
     
     # Core requirements
     print("Core Requirements:")
-    print(f"  {'✓' if results['python_version'] else '✗'} Python 3.10+")
-    print(f"  {'✓' if results['pygame_ce'] else '✗'} pygame-ce")
-    print(f"  {'✓' if results['pygame_gui'] else '✗'} pygame-gui")
-    print(f"  {'✓' if results['requests'] else '✗'} requests")
-    print(f"  {'✓' if results['dotenv'] else '✗'} python-dotenv")
-    
+    print(f"  {'[OK]' if results['python_version'] else '[FAIL]'} Python 3.10+")
+    print(f"  {'[OK]' if results['pygame_ce'] else '[FAIL]'} pygame-ce")
+    print(f"  {'[OK]' if results['pygame_gui'] else '[FAIL]'} pygame-gui")
+    print(f"  {'[OK]' if results['requests'] else '[FAIL]'} requests")
+    print(f"  {'[OK]' if results['dotenv'] else '[FAIL]'} python-dotenv")
+
     # Configuration
     print("\nConfiguration:")
-    print(f"  {'✓' if results['config_valid'] else '✗'} config.json valid")
-    
+    print(f"  {'[OK]' if results['config_valid'] else '[FAIL]'} config.json valid")
+
     # Services
     print("\nServices:")
-    print(f"  {'✓' if results['ollama_server'] else '✗'} Ollama server")
+    print(f"  {'[OK]' if results['ollama_server'] else '[FAIL]'} Ollama server")
     
     # Overall status
     print("\n" + "="*60)
@@ -203,12 +203,12 @@ def print_diagnostic_report(results: dict) -> None:
     
     if all_critical:
         if results['ollama_server']:
-            print("✅ All systems ready!")
+            print("[SUCCESS] All systems ready!")
         else:
-            print("⚠️  Core systems ready, but Ollama not available")
+            print("[WARN] Core systems ready, but Ollama not available")
             print("   Start Ollama with: ollama serve")
     else:
-        print("❌ Missing required dependencies")
+        print("[ERROR] Missing required dependencies")
         print("\n   Install with: pip install -r requirements.txt")
     
     print("="*60 + "\n")
@@ -268,9 +268,9 @@ def main() -> int:
                 
                 # Test availability
                 if provider.is_available():
-                    logger.info(f"  ✓ {provider.name} is available")
+                    logger.info(f"  [OK] {provider.name} is available")
                 else:
-                    logger.warning(f"  ⚠️ {provider.name} not responding")
+                    logger.warning(f"  [WARN] {provider.name} not responding")
                     
             except Exception as e:
                 logger.error(f"Failed to initialize {provider_name}: {e}")
@@ -294,9 +294,9 @@ def main() -> int:
     logger.info("="*60)
     show_success_dialog(
         "Phase 0 Complete!\n\n"
-        f"✓ Configuration loaded\n"
-        f"✓ {len(providers)} provider(s) initialized\n"
-        f"✓ Logging configured\n\n"
+        f"[OK] Configuration loaded\n"
+        f"[OK] {len(providers)} provider(s) initialized\n"
+        f"[OK] Logging configured\n\n"
         "Ready for Phase 1: Game Engine"
     )
     
@@ -313,5 +313,5 @@ if __name__ == "__main__":
     except Exception as e:
         if logger:
             logger.exception("Fatal error")
-        print(f"\n❌ Fatal error: {e}")
+        print(f"\n[FATAL] Fatal error: {e}")
         sys.exit(1)
