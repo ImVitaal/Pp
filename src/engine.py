@@ -6,9 +6,10 @@ Handles the main game loop, event processing, camera system, and rendering.
 
 import pygame
 import logging
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 
 from src.world import World
+from src.entities import Agent, AgentState
 from src.config_manager import get_window_size, get_fps_target
 
 logger = logging.getLogger("pixelprompt.engine")
@@ -57,14 +58,19 @@ class GameEngine:
         # World
         self.world = World(config)
 
-        # Entities (Phase 2 will populate this)
-        self.agents: List = []  # List[Agent] when entities.py exists
-        self.selected_agent: Optional = None  # Optional[Agent] when entities.py exists
+        # Initialize agents from config
+        self.agents: List[Agent] = []
+        self.selected_agent: Optional[Agent] = None
+
+        for agent_config in config.get('agents', []):
+            agent = Agent(agent_config, config['camera']['bounds'])
+            self.agents.append(agent)
+            logger.info(f"Created agent: {agent.name} (id={agent.id})")
 
         # Engine state
         self.running = True
 
-        logger.info("Game engine initialized successfully")
+        logger.info(f"Game engine initialized successfully with {len(self.agents)} agent(s)")
 
     def run(self) -> None:
         """
@@ -108,7 +114,29 @@ class GameEngine:
                     logger.info("ESC key pressed, exiting")
                     self.running = False
 
-            # Phase 2 will add: mouse click handling for agent selection
+            elif event.type == pygame.MOUSEBUTTONDOWN:
+                if event.button == 1:  # Left click
+                    self._handle_agent_click(event.pos)
+
+    def _handle_agent_click(self, mouse_pos: Tuple[int, int]) -> None:
+        """
+        Handle agent selection via mouse click.
+
+        Args:
+            mouse_pos: Mouse position in screen coordinates
+        """
+        # Check each agent for click (reverse order for top-most first)
+        for agent in reversed(self.agents):
+            if agent.handle_click(mouse_pos, self.camera_offset):
+                # Deselect previous agent
+                if self.selected_agent:
+                    self.selected_agent.selected = False
+
+                # Select new agent
+                self.selected_agent = agent
+                agent.selected = True
+                logger.info(f"Selected agent: {agent.name}")
+                break
 
     def update(self, dt: float) -> None:
         """
@@ -120,9 +148,9 @@ class GameEngine:
         # Update camera based on keyboard input
         self.update_camera(dt)
 
-        # Phase 2 will add: update all agents
-        # for agent in self.agents:
-        #     agent.update(dt)
+        # Update all agents
+        for agent in self.agents:
+            agent.update(dt)
 
     def update_camera(self, dt: float) -> None:
         """
@@ -181,9 +209,9 @@ class GameEngine:
         # Render world
         self.world.render(self.screen, self.camera_offset)
 
-        # Phase 2 will add: render all agents
-        # for agent in self.agents:
-        #     agent.render(self.screen, self.camera_offset)
+        # Render all agents
+        for agent in self.agents:
+            agent.render(self.screen, self.camera_offset)
 
         # Flip display to show rendered frame
         pygame.display.flip()
