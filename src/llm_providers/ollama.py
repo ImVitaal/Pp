@@ -9,6 +9,10 @@ from . import BaseLLMProvider
 
 logger = logging.getLogger("pixelprompt.llm.ollama")
 
+# Stream safeguards to prevent runaway responses
+MAX_RESPONSE_CHUNKS = 10000  # Maximum chunks to process
+MAX_RESPONSE_LENGTH = 100000  # Maximum total response length in characters
+
 
 class OllamaProvider(BaseLLMProvider):
     """Local Ollama provider for free, offline inference."""
@@ -73,23 +77,40 @@ class OllamaProvider(BaseLLMProvider):
             )
             response.raise_for_status()
             
-            # Stream chunks
+            # Stream chunks with safeguards
+            chunk_count = 0
+            total_length = 0
+
             for line in response.iter_lines():
                 if line:
+                    chunk_count += 1
+
+                    # Safeguard: limit number of chunks
+                    if chunk_count > MAX_RESPONSE_CHUNKS:
+                        logger.warning(f"Response exceeded {MAX_RESPONSE_CHUNKS} chunks, truncating")
+                        break
+
                     try:
                         chunk = json.loads(line)
-                        
+
                         # Extract content from message
                         if 'message' in chunk and 'content' in chunk['message']:
                             content = chunk['message']['content']
                             if content:  # Only yield non-empty content
+                                total_length += len(content)
+
+                                # Safeguard: limit total response length
+                                if total_length > MAX_RESPONSE_LENGTH:
+                                    logger.warning(f"Response exceeded {MAX_RESPONSE_LENGTH} chars, truncating")
+                                    break
+
                                 yield content
-                        
+
                         # Check if done
                         if chunk.get('done', False):
                             logger.debug("Stream completed")
                             break
-                            
+
                     except json.JSONDecodeError as e:
                         logger.warning(f"Failed to parse chunk: {e}")
                         continue
@@ -105,13 +126,27 @@ class OllamaProvider(BaseLLMProvider):
             raise TimeoutError(error_msg) from e
         
         except requests.HTTPError as e:
-            if e.response.status_code == 404:
+            status_code = e.response.status_code
+
+            # Try to extract error details from response body
+            try:
+                error_body = e.response.json()
+                error_detail = error_body.get('error', str(e))
+            except (json.JSONDecodeError, ValueError):
+                error_detail = e.response.text[:500] if e.response.text else str(e)
+
+            if status_code == 404:
                 error_msg = f"Model '{model}' not found. Run: ollama pull {model}"
                 logger.error(error_msg)
                 raise ValueError(error_msg) from e
+            elif status_code == 400:
+                error_msg = f"Bad request to Ollama: {error_detail}"
+                logger.error(error_msg)
+                raise ValueError(error_msg) from e
             else:
-                logger.error(f"HTTP error: {e}")
-                raise
+                error_msg = f"HTTP {status_code} error from Ollama: {error_detail}"
+                logger.error(error_msg)
+                raise ConnectionError(error_msg) from e
     
     def is_available(self) -> bool:
         """

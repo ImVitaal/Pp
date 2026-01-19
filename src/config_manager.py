@@ -2,8 +2,10 @@
 
 import json
 import logging
+import re
 from pathlib import Path
 from typing import Dict, Any, Tuple, Optional
+from urllib.parse import urlparse
 import os
 
 logger = logging.getLogger("pixelprompt.config")
@@ -239,11 +241,50 @@ def validate_config(config: Dict[str, Any]) -> None:
         if agent["provider"] not in providers:
             raise ValueError(f"Agent uses unknown provider: {agent['provider']}")
         
-        # Validate color hex
+        # Validate color hex (must be #RRGGBB with valid hex digits)
         color = agent["color_hex"]
-        if not (color.startswith("#") and len(color) == 7):
-            raise ValueError(f"Invalid color hex: {color}")
-    
+        if not re.match(r'^#[0-9A-Fa-f]{6}$', color):
+            raise ValueError(f"Invalid color hex: {color}. Expected format: #RRGGBB with valid hex digits")
+
+        # Validate spawn_position is [x, y] with valid coordinates
+        spawn = agent["spawn_position"]
+        if not isinstance(spawn, (list, tuple)) or len(spawn) != 2:
+            raise ValueError(f"Agent spawn_position must be [x, y] coordinate pair, got: {spawn}")
+        if not all(isinstance(coord, (int, float)) for coord in spawn):
+            raise ValueError(f"Agent spawn_position coordinates must be numbers, got: {spawn}")
+        if spawn[0] < 0 or spawn[1] < 0:
+            raise ValueError(f"Agent spawn_position cannot have negative coordinates: {spawn}")
+
+    # Validate camera bounds if present
+    camera = config.get("camera", {})
+    bounds = camera.get("bounds", {})
+    if bounds:
+        min_x = bounds.get("min_x", 0)
+        max_x = bounds.get("max_x", 2000)
+        min_y = bounds.get("min_y", 0)
+        max_y = bounds.get("max_y", 2000)
+
+        if min_x >= max_x:
+            raise ValueError(f"Camera bounds invalid: min_x ({min_x}) must be less than max_x ({max_x})")
+        if min_y >= max_y:
+            raise ValueError(f"Camera bounds invalid: min_y ({min_y}) must be less than max_y ({max_y})")
+
+    # Validate Ollama URL if enabled
+    ollama_cfg = providers.get('ollama', {})
+    if ollama_cfg.get('enabled', False):
+        base_url = ollama_cfg.get('base_url', '')
+        if base_url:
+            try:
+                result = urlparse(base_url)
+                if not all([result.scheme, result.netloc]):
+                    raise ValueError(f"Invalid Ollama base_url format: {base_url}")
+                if result.scheme not in ('http', 'https'):
+                    raise ValueError(f"Ollama base_url must use http or https: {base_url}")
+            except Exception as e:
+                if "Invalid" in str(e):
+                    raise
+                raise ValueError(f"Invalid Ollama base_url: {base_url} - {e}")
+
     logger.debug("Config validation passed")
 
 
@@ -312,11 +353,11 @@ def check_provider_credentials(config: Dict[str, Any]) -> Dict[str, bool]:
             results[name] = True
             continue
         
-        # Check for API key in environment
+        # Check for API key in environment (reject whitespace-only keys)
         api_key_env = cfg.get("api_key_env")
         if api_key_env:
             api_key = os.getenv(api_key_env)
-            results[name] = bool(api_key and len(api_key) > 0)
+            results[name] = bool(api_key and api_key.strip())
         else:
             results[name] = False
     

@@ -254,7 +254,6 @@ def main() -> int:
     
     # Initialize providers (Phase 0 - just test they can be created)
     try:
-        from src.llm_providers import create_provider
         from src.config_manager import get_enabled_providers
         
         enabled_providers = get_enabled_providers(config)
