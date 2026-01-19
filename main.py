@@ -15,6 +15,7 @@ sys.path.insert(0, str(Path(__file__).parent / "src"))
 from src.utils import setup_logging, show_error_dialog, show_success_dialog, show_warning_dialog
 from src.config_manager import load_config, check_provider_credentials
 from src.llm_providers import create_provider
+from src.engine import GameEngine
 
 logger = None  # Will be initialized after argument parsing
 
@@ -287,18 +288,22 @@ def main() -> int:
         show_error_dialog(f"Provider initialization error: {e}")
         return 1
     
-    # Phase 0: Just validate and exit successfully
+    # Phase 1: Start the game engine
     logger.info("="*60)
-    logger.info("Phase 0 validation complete!")
+    logger.info("Starting game engine...")
     logger.info("="*60)
-    show_success_dialog(
-        "Phase 0 Complete!\n\n"
-        f"[OK] Configuration loaded\n"
-        f"[OK] {len(providers)} provider(s) initialized\n"
-        f"[OK] Logging configured\n\n"
-        "Ready for Phase 1: Game Engine"
-    )
-    
+
+    try:
+        engine = GameEngine(config)
+        engine.run()
+    except KeyboardInterrupt:
+        logger.info("User interrupted with Ctrl+C")
+    except Exception as e:
+        logger.exception("Engine crashed")
+        show_error_dialog(f"Engine error: {e}")
+        return 1
+
+    logger.info("Engine shutdown complete")
     return 0
 
 
