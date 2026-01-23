@@ -287,19 +287,58 @@ def main() -> int:
         show_error_dialog(f"Provider initialization error: {e}")
         return 1
     
-    # Phase 0: Just validate and exit successfully
+    # Initialize game engine
     logger.info("="*60)
-    logger.info("Phase 0 validation complete!")
+    logger.info("Initializing game engine...")
     logger.info("="*60)
-    show_success_dialog(
-        "Phase 0 Complete!\n\n"
-        f"[OK] Configuration loaded\n"
-        f"[OK] {len(providers)} provider(s) initialized\n"
-        f"[OK] Logging configured\n\n"
-        "Ready for Phase 1: Game Engine"
-    )
-    
-    return 0
+
+    try:
+        from src.engine import GameEngine
+        from src.entities import Agent
+        from src.llm_client import LLMClient
+        from src.ui import UIManager
+
+        # Create engine
+        engine = GameEngine(config)
+
+        # Initialize LLM providers
+        engine.llm_providers = providers
+        engine.llm_client = LLMClient(providers)
+        engine.llm_client.start()
+
+        # Create agents from config
+        for agent_config in config.get('agents', []):
+            agent = Agent(agent_config, engine.world)
+            engine.agents.append(agent)
+            logger.info(f"Spawned agent: {agent.name}")
+
+        # Initialize UI
+        window_size = (config['window']['width'], config['window']['height'])
+        engine.ui_manager = UIManager(window_size, config.get('ui', {}))
+
+        # Auto-select first agent
+        if engine.agents:
+            engine.agents[0].selected = True
+            engine.selected_agent = engine.agents[0]
+            logger.info(f"Auto-selected agent: {engine.agents[0].name}")
+
+        logger.info("Starting game...")
+        logger.info("Controls: WASD to pan camera, Click agent to select, Type to chat, ESC to exit")
+
+        # Run game loop
+        try:
+            engine.run()
+        finally:
+            # Cleanup
+            engine.cleanup()
+
+        logger.info("Game exited cleanly")
+        return 0
+
+    except Exception as e:
+        logger.exception("Error running game")
+        show_error_dialog(f"Game error: {e}")
+        return 1
 
 
 if __name__ == "__main__":
